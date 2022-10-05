@@ -3,7 +3,6 @@ from time import time
 
 import pandas as pd
 import os
-
 import torch
 
 
@@ -71,7 +70,7 @@ def __get_last_epoch_idx(saving_path):
 
     last_epoch_idx = 0
     if os.path.exists(full_path):
-        df = pd.read_csv(full_path, header=False, index_col=False)
+        df = pd.read_csv(full_path, index_col=False)
         if df is not None:
             last_epoch_idx = len(df)
     return last_epoch_idx
