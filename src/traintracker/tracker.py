@@ -9,25 +9,35 @@ from .epochs_stats import EpochStatus
 
 
 class TrainTracker:
-    def __init__(self, model, train_loader, validation_loader, loss_function, optimizer, train_data_dir, weights_dir,
+    bar_length = 10
+
+    def __init__(self, model, validation_loader, train_loader=None, loss_function=None, optimizer=None,
+                 train_data_dir=None, weights_dir=None,
                  extra_info=None, notes=None):
-        if notes is not None:
-            extra_info["notes"] = notes
 
-        self.model, self.train_loader, self.validation_loader, self.loss_function, self.optimizer, \
-        self.train_data_dir, self.weights_dir = model, train_loader, validation_loader, loss_function, optimizer, train_data_dir, weights_dir
-        save_hpyerparameters(model, saving_path=train_data_dir, batch_size=train_loader.batch_size,
-                             optimizer=optimizer, loss_function=loss_function, extra_info=extra_info)
+        if train_loader is None:
+            # test mode only
+            self.model, validation_loader = model, validation_loader
+            self.test_only = True
+            self.validation_epoch_status = EpochStatus(validation_loader)
+            self.mod = "test"
 
-        self.train_epoch_status = EpochStatus(train_loader)
-        self.validation_epoch_status = EpochStatus(validation_loader)
-        self.bar_length = 10
+        else:
+            if notes is not None:
+                extra_info["notes"] = notes
 
-        self.loading_bar = "[" + (self.bar_length * ".") + "]"
-        self.mod = "train"
-        self.minTestLoss = None
-        self.last_train_loss = 0
-        self.last_test_loss = 0
+            self.model, self.train_loader, self.validation_loader, self.loss_function, self.optimizer, \
+            self.train_data_dir, self.weights_dir = model, train_loader, validation_loader, loss_function, optimizer, train_data_dir, weights_dir
+            save_hpyerparameters(model, saving_path=train_data_dir, batch_size=train_loader.batch_size,
+                                 optimizer=optimizer, loss_function=loss_function, extra_info=extra_info)
+
+            self.train_epoch_status = EpochStatus(train_loader)
+            self.validation_epoch_status = EpochStatus(validation_loader)
+            self.mod = "train"
+            self.minTestLoss = None
+            self.last_train_loss = 0
+            self.last_test_loss = 0
+            self.test_only = False
 
     def train(self):
         self.mod = "train"
@@ -39,72 +49,77 @@ class TrainTracker:
         if self.mod == "train":
             avg_loss, time_remaining = self.train_epoch_status.step(loss)
 
-            sys.stdout.write("\r epoch " + str(
-                self.train_epoch_status.epoch_idx) + self.train_epoch_status.get_loading_bar() + "time remaining (m) = " + str(
-                time_remaining) + " Avg Train_Loss=" + str(avg_loss))
-            sys.stdout.flush()
-
             if self.train_epoch_status.epoch_finished():
                 # last forward step in the epoch print summary and new line
-                avg_loss, total_time = self.train_epoch_status.epoch_summary()
 
-                sys.stdout.write("\r epoch " + str(self.train_epoch_status.epoch_idx) + "] time Taken (git m) = " + str(
-                    total_time) + " Avg Train_Loss=" + str(avg_loss))
-                sys.stdout.flush()
+                avg_loss, total_time = self.train_epoch_status.last_epoch_summary()
+
+                sys.stdout.write(
+                    "\r training epoch " + str(self.train_epoch_status.epoch_idx) + " time Taken (m) = " + str(
+                        total_time) + " Avg Train_Loss=" + str(avg_loss))
                 print()
+                sys.stdout.flush()
+                self.train_epoch_status.next_epoch()
+
+            else:
+                sys.stdout.write("\r epoch " + str(
+                    self.train_epoch_status.epoch_idx) + self.train_epoch_status.get_loading_bar() + "time remaining (m) = " + str(
+                    time_remaining) + " Avg Train_Loss=" + str(avg_loss))
+                sys.stdout.flush()
+
+
         else:
             avg_loss, time_remaining = self.validation_epoch_status.step(loss)
-
-            sys.stdout.write(
-                "\r testing " + self.validation_epoch_status.get_loading_bar() + "time remaining (m) = " + str(
-                    time_remaining) + " Avg Test_Loss=" + str(avg_loss))
-            sys.stdout.flush()
 
             if self.validation_epoch_status.epoch_finished():
                 # last forward step in the epoch print summary and new line
 
-                avg_loss, total_time = self.validation_epoch_status.epoch_summary()
-
+                avg_loss, total_time = self.validation_epoch_status.last_epoch_summary()
                 sys.stdout.write(
-                    "\r Testing " + str(self.validation_epoch_status.epoch_idx) + "] time Taken (git m) = " + str(
+                    "\r Test  time Taken (m) = " + str(
                         total_time) + " Avg Test_Loss=" + str(avg_loss))
-                sys.stdout.flush()
                 print()
-        return avg_loss
+                sys.stdout.flush()
+                self.validation_epoch_status.next_epoch()
 
-    def reset(self):
-        if self.mod == "train":
-            self.train_epoch_status.reset()
-        else:
-            self.validation_epoch_status.reset()
+            else:
+                sys.stdout.write(
+                    "\r testing "+self.validation_epoch_status.get_loading_bar()+" time remaining (m) = " + str(
+                        time_remaining) + " Avg Test_Loss=" + str(avg_loss))
+                sys.stdout.flush()
+
+        return avg_loss
 
     def end_epoch(self):
         # show test and train loss
 
-        avg_train_loss, total_train_time = self.train_epoch_status.epoch_summary()
-        self.train_epoch_status.reset()
-        avg_test_loss, total_test_time = self.validation_epoch_status.epoch_summary()
-        self.validation_epoch_status.reset()
+        avg_test_loss, total_test_time = self.validation_epoch_status.last_epoch_summary()
 
-        sys.stdout.flush()
-        print(
-            f" epoch {self.train_epoch_status.epoch_idx} train_loss ={avg_train_loss} test_loss={avg_test_loss} total_time= {total_train_time + total_test_time}")
-        if self.minTestLoss is None:
-            self.minTestLoss = avg_test_loss
-        else:
-            if avg_test_loss < self.minTestLoss:
-                print(
-                    f"new minimum test loss {str(avg_test_loss)} ", end=" ")
-                save_train_weights(self.model, avg_train_loss, avg_test_loss, self.weights_dir)
-                print("achieved, model weights saved", end=" ")
-                print()
+        if not self.test_only:
+            avg_train_loss, total_train_time = self.train_epoch_status.last_epoch_summary()
+            sys.stdout.flush()
+            print(
+                f" epoch {self.train_epoch_status.epoch_idx-1} train_loss ={avg_train_loss} test_loss={avg_test_loss} total_time= {total_train_time + total_test_time}")
+            if self.minTestLoss is None:
                 self.minTestLoss = avg_test_loss
+            else:
+                if avg_test_loss < self.minTestLoss:
+                    print(
+                        f"new minimum test loss {str(avg_test_loss)} ", end=" ")
+                    save_train_weights(self.model, avg_train_loss, avg_test_loss, self.weights_dir)
+                    print("achieved, model weights saved", end=" ")
+                    print()
+                    self.minTestLoss = avg_test_loss
 
-        if avg_train_loss < avg_test_loss:
-            print("!!!Warning Overfitting!!!")
-        save_epoch_to_csv(self.train_data_dir, avg_train_loss, len(self.train_loader.dataset), avg_test_loss,
-                          len(self.validation_loader.dataset), total_train_time + total_test_time)
-        return avg_train_loss, avg_test_loss
+            if avg_train_loss < avg_test_loss:
+                print("!!!Warning Overfitting!!!")
+            save_epoch_to_csv(self.train_data_dir, avg_train_loss, len(self.train_loader.dataset), avg_test_loss,
+                              len(self.validation_loader.dataset), total_train_time + total_test_time)
+            return avg_train_loss, avg_test_loss
+        else:
+            print(
+                f" avg_test_loss ={avg_test_loss} total_time= {total_test_time}")
+            return avg_test_loss
 
 
 def save_train_weights(model, train_loss, test_loss, saving_path):

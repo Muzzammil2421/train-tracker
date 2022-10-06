@@ -2,8 +2,9 @@ from time import time
 
 
 class EpochStatus:
+    bar_length = 10
+
     def __init__(self, data_loader):
-        self.bar_length = 10
         self.data_loader = data_loader
         self.epoch_idx = 1
 
@@ -12,8 +13,10 @@ class EpochStatus:
         self.time_sum = 0.0
         self.start_time = time()
         self.last_step_time = time()
-        # [*****************************]#
-        self.loading_bar = "[" + (self.bar_length * ".") + "]"
+
+        self.last_epoch_total_time = 0.0
+        self.last_epoch_avg_loss = 0.0
+        # TODO: separate start time with start loop function and reset data at the start of the loop
 
     def step(self, loss):
         self.loss_sum += loss
@@ -28,29 +31,30 @@ class EpochStatus:
         avg_step_time = self.time_sum / self.forward_cnt
         time_remaining = avg_step_time * (len(self.data_loader) - self.forward_cnt)
         avg_loss = round(self.loss_sum / (self.forward_cnt * self.data_loader.batch_size), 8)
-        if self.forward_cnt==len(self.data_loader):
-            self.epoch_idx += 1
+        if self.epoch_finished():
+            self.last_epoch_avg_loss = avg_loss
+            self.last_epoch_total_time = time() - self.start_time
+
         return avg_loss, self.sec2min(time_remaining)
 
     def epoch_finished(self) -> bool:
-        return self.forward_cnt == len(self.data_loader)
+        return self.forward_cnt >= len(self.data_loader)
 
-    def reset(self):
+    def next_epoch(self):
         self.forward_cnt = 0
         self.loss_sum = 0.0
         self.time_sum = 0.0
         self.start_time = time()
         self.last_step_time = time()
+        self.epoch_idx += 1
 
     def get_loading_bar(self) -> str:
         finished_procedure = int((self.forward_cnt * self.bar_length) / len(self.data_loader))
         remaining_procedure = self.bar_length - finished_procedure
         return "[" + ("=" * finished_procedure) + (remaining_procedure * ".") + "]"
 
-    def epoch_summary(self):
-        total_time = time() - self.start_time
-        avg_loss = round(self.loss_sum / (self.forward_cnt * self.data_loader.batch_size), 8)
-        return avg_loss, total_time
+    def last_epoch_summary(self):
+        return self.last_epoch_avg_loss, self.sec2min(self.last_epoch_total_time)
 
     @staticmethod
     def sec2min(seconds: float):
