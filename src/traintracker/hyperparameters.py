@@ -1,21 +1,14 @@
-
 from .utils import *
 
 
-def save_hpyerparameters(model, saving_path, batch_size, optimizer, loss_function,
-                         extra_info: dict = None):
-    if extra_info is not None:
-        extra_info = dict(sorted(extra_info.items()))
-
+def save_hpyerparameters(model, saving_path, hyperparameters: dict):
     last_epochs_idx = __get_last_epoch_idx(saving_path) + 1
+    current_data = {"epoch idx from": last_epochs_idx, "model architecture": str(model)}
+    for col_name, data in hyperparameters.items():
+        current_data[col_name] = str(data)
+    current_data["changed hyperParameters"]= []
 
-    current_data = {"epoch idx from": last_epochs_idx, "model architecture": str(model),
-                    "train batch size": batch_size,
-                    "loss function": str(loss_function), "optimizer": str(optimizer), "changed hyperParameters": []}
     last_row_data = last_saved_hyperparameters(saving_path)
-
-    for key, value in extra_info.items():
-        current_data[key] = value
 
     if last_row_data is not None:
         current_data["changed hyperParameters"] = __different_keys(current_data, last_row_data)
@@ -51,7 +44,7 @@ def last_saved_hyperparameters(saving_path) -> dict:
     if df is None or len(df) == 0:
         return last_row_dict
     for attr_name, attr_value in df.iloc[-1].iteritems():
-        last_row_dict[attr_name] = attr_value
+        last_row_dict[attr_name] = str(attr_value)
 
     if len(last_row_dict) == 0:
         return last_row_dict

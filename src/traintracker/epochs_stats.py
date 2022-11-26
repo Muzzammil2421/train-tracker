@@ -1,12 +1,17 @@
 from time import time
-from torch.utils.data import DataLoader
 
 
 class EpochStatus:
     bar_length = 10
 
-    def __init__(self, data_loader: DataLoader):
-        self.data_loader = data_loader
+    def __init__(self, no_batches: int, batch_size: int):
+        """
+        no_batches:
+        batch_size:
+        :param data_loader:
+        """
+        self.no_batches = no_batches
+        self.batch_size = batch_size
         self.epoch_idx = 1
 
         self.forward_cnt = 0
@@ -27,7 +32,7 @@ class EpochStatus:
         :param loss:
         :return:
         """
-        self.loss_sum += (loss * self.data_loader.batch_size)
+        self.loss_sum += (loss * self.batch_size)
         self.forward_cnt += 1.0
 
         forward_fin_time = time()
@@ -37,8 +42,8 @@ class EpochStatus:
         self.last_step_time = forward_fin_time
 
         avg_step_time = self.time_sum / self.forward_cnt
-        time_remaining = avg_step_time * (len(self.data_loader) - self.forward_cnt)
-        avg_loss = round(self.loss_sum / (self.forward_cnt * self.data_loader.batch_size), 8)
+        time_remaining = avg_step_time * (self.no_batches - self.forward_cnt)
+        avg_loss = round(self.loss_sum / (self.forward_cnt * self.batch_size), 8)
         if self.epoch_finished():
             self.last_epoch_avg_loss = avg_loss
             self.last_epoch_total_time = time() - self.start_time
@@ -46,7 +51,7 @@ class EpochStatus:
         return avg_loss, self.sec2min(time_remaining)
 
     def epoch_finished(self) -> bool:
-        return self.forward_cnt >= len(self.data_loader)
+        return self.forward_cnt >= self.no_batches
 
     def next_epoch(self):
         """
@@ -65,7 +70,7 @@ class EpochStatus:
         creates a loading string bar [=====...........]
         :return:
         """
-        finished_procedure = int((self.forward_cnt * self.bar_length) / len(self.data_loader))
+        finished_procedure = int((self.forward_cnt * self.bar_length) / self.no_batches)
         remaining_procedure = self.bar_length - finished_procedure
         return "[" + ("=" * finished_procedure) + (remaining_procedure * ".") + "]"
 
