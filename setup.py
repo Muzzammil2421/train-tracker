@@ -16,6 +16,6 @@ setuptools.setup(
     license='MIT',
     packages=['traintracker'],
     package_dir={
-        'traintracker': 'src/traintracker','convfacenet.face_descriptor': 'src/convfacenet/face_descriptor','convfacenet.face_detector':'src/convfacenet/face_detector'},
+        'traintracker': 'src/traintracker'},
     install_requires=['torch','numpy','pandas'],
 )

@@ -22,7 +22,7 @@ class TrainTracker:
                  train_data_size: tuple = None, test_data_size: tuple = None,
                  train_data_dir: str = None,
                  hyperparameters: dict = None,
-                 weights_dir: str = None):
+                 weights_dir: str = None,last_weights=False):
         """
         :param model:pytorch Model
         :param tracker_mod: tracker mod instance from TrackerMod enum (TRAIN_ONLY,TEST_ONLY,TRAIN_TEST)
@@ -38,6 +38,8 @@ class TrainTracker:
         self.weights_dir = weights_dir
         self.train_data_dir = train_data_dir
         self.current_process = 'test' if tracker_mod == TrackerMod.TEST_ONLY else 'train'
+        self._last_weights_path=None
+        self.last_weights=last_weights
         if tracker_mod != TrackerMod.TEST_ONLY:
             # train and test or train only
             # add train data
@@ -147,7 +149,11 @@ class TrainTracker:
                 if avg_test_loss < self.minTestLoss:
                     print(
                         f"new minimum test loss {str(avg_test_loss)} ", end=" ")
-                    save_train_weights(self.model, self.weights_dir, avg_train_loss, avg_test_loss)
+                    weights_path=save_train_weights(self.model, self.weights_dir, avg_train_loss, avg_test_loss)
+                    if self.last_weights:
+                        if self._last_weights_path is not None:
+                            os.remove(self._last_weights_path)
+                        self._last_weights_path=weights_path
                     print("achieved, model weights saved", end=" ")
                     print()
                     self.minTestLoss = avg_test_loss
@@ -169,7 +175,11 @@ class TrainTracker:
                 if avg_train_loss < self.minTrainLoss:
                     print(
                         f"new minimum train loss {str(avg_train_loss)} ", end=" ")
-                    save_train_weights(self.model, self.weights_dir, avg_train_loss)
+                    weights_path=save_train_weights(self.model, self.weights_dir, avg_train_loss)
+                    if self.last_weights:
+                        if self._last_weights_path is not None:
+                            os.remove(self._last_weights_path)
+                        self._last_weights_path = weights_path
                     print("achieved, model weights saved", end=" ")
                     print()
                     self.minTrainLoss = avg_train_loss
