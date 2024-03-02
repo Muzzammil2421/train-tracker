@@ -34,6 +34,7 @@ class TrainTracker:
         """
         self.tracker_mod = tracker_mod
         self.model = model
+        self.best_weights=None
         self.hyperparameters = hyperparameters
         self.weights_dir = weights_dir
         self.train_data_dir = train_data_dir
@@ -214,6 +215,7 @@ def save_train_weights(model: torch.nn.Module, saving_path: str, train_loss: flo
     full_path = f"{saving_path}/{weight_file_name}"
 
     torch.save(model.state_dict(), full_path)
+    self.best_weights=model.state_dict()
     return full_path
 
 
@@ -250,3 +252,4 @@ def save_epoch_to_csv(saving_path: str, time_taken: float, train_loss: float, no
         df.to_csv(full_path, index=False)
     else:
         df.to_csv(full_path, mode='a', header=False, index=False)
+    
