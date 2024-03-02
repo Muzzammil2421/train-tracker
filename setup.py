@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 setuptools.setup(
     name='train-tracker',
-    version='0.0.1',
+    version='0.0.11',
     author='Ahmed badr',
     author_email='ahmed.k.badr.97@gmail.com',
     description='library you can use to track your training data while you are training your pytorch model',
