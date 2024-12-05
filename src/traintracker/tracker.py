@@ -150,7 +150,7 @@ class TrainTracker:
                 if avg_test_loss < self.minTestLoss:
                     print(
                         f"new minimum test loss {str(avg_test_loss)} ", end=" ")
-                    weights_path=save_train_weights(self.model, self.weights_dir, avg_train_loss, avg_test_loss)
+                    weights_path=self.save_train_weights(self.model, self.weights_dir, avg_train_loss, avg_test_loss)
                     if self.last_weights:
                         if self._last_weights_path is not None:
                             os.remove(self._last_weights_path)
@@ -161,7 +161,7 @@ class TrainTracker:
 
             if avg_train_loss < avg_test_loss:
                 print("!!!Warning Overfitting!!!")
-            save_epoch_to_csv(self.train_data_dir, total_train_time + total_test_time, avg_train_loss,
+            self.save_epoch_to_csv(self.train_data_dir, total_train_time + total_test_time, avg_train_loss,
                               self.train_data_size, avg_test_loss,
                               self.test_data_size)
             return avg_train_loss, avg_test_loss
@@ -176,7 +176,7 @@ class TrainTracker:
                 if avg_train_loss < self.minTrainLoss:
                     print(
                         f"new minimum train loss {str(avg_train_loss)} ", end=" ")
-                    weights_path=save_train_weights(self.model, self.weights_dir, avg_train_loss)
+                    weights_path=self.save_train_weights(self.model, self.weights_dir, avg_train_loss)
                     if self.last_weights:
                         if self._last_weights_path is not None:
                             os.remove(self._last_weights_path)
@@ -185,7 +185,7 @@ class TrainTracker:
                     print()
                     self.minTrainLoss = avg_train_loss
 
-            save_epoch_to_csv(self.train_data_dir, total_train_time, avg_train_loss, self.train_data_size,
+            self.save_epoch_to_csv(self.train_data_dir, total_train_time, avg_train_loss, self.train_data_size,
                               )
             return avg_train_loss
 
@@ -194,62 +194,64 @@ class TrainTracker:
             print(
                 f" avg_test_loss ={avg_test_loss} total_time= {total_test_time}")
             return avg_test_loss
+        
+    def save_train_weights(self, model: torch.nn.Module, saving_path: str, train_loss: float = None, test_loss: float = None):
+        """
+        saves model weights with file name format Day_Month Hour_minute train_(train_loss) test_(test_loss)
+        :param model: model object
+        :param saving_path: the path you want to save the weights in
+        :param train_loss: train loss (float)
+        :param test_loss: test loss (float)
+
+        :return: the full path of the saved file (saving_path+filename)
+        """
+        weight_file_name = f"{datetime.now().strftime('%m_%d %H_%M')} "
+        if train_loss is not None:
+            weight_file_name += f"Train_({round(train_loss, 5)}) "
+        if test_loss is not None:
+            weight_file_name += f"Test_({round(test_loss, 5)})"
+        weight_file_name += ".pt"
+        full_path = f"{saving_path}/{weight_file_name}"
+
+        torch.save(model.state_dict(), full_path)
+        self.best_weights=model.state_dict()
+        return full_path
 
 
-def save_train_weights(model: torch.nn.Module, saving_path: str, train_loss: float = None, test_loss: float = None):
-    """
-    saves model weights with file name format Day_Month Hour_minute train_(train_loss) test_(test_loss)
-    :param model: model object
-    :param saving_path: the path you want to save the weights in
-    :param train_loss: train loss (float)
-    :param test_loss: test loss (float)
+    def save_epoch_to_csv(self, saving_path: str, time_taken: float, train_loss: float, no_train_rows: int,
+                        test_loss: float = None,
+                        no_test_rows: int = None,
+                        ) -> None:
+        """
+        append current epoch data to existing csv file if the file doesn't exist create new one
+        :param saving_path:csv folder path
+        :param train_loss: epoch train loss
+        :param no_train_rows: no of train rows (not batches)
+        :param test_loss: epoch test loss
+        :param no_test_rows: no of test rows (not batches)
+        :param time_taken: time taken for training and testing for this epoch
+        """
+        date_now = datetime.now()
+        if saving_path is None or len(saving_path) == 0:
+            full_path = "epochs_data.csv"
+        else:
+            full_path = f"{saving_path}/epochs_data.csv"
 
-    :return: the full path of the saved file (saving_path+filename)
-    """
-    weight_file_name = f"{datetime.now().strftime('%m_%d %H_%M')} "
-    if train_loss is not None:
-        weight_file_name += f"Train_({round(train_loss, 5)}) "
-    if test_loss is not None:
-        weight_file_name += f"Test_({round(test_loss, 5)})"
-    weight_file_name += ".pt"
-    full_path = f"{saving_path}/{weight_file_name}"
+        row = [train_loss, no_train_rows]
+        cols = ["Train Loss", "no train rows"]
+        if test_loss is not None:
+            cols += ["Test Loss", "No test rows"]
+            row += [test_loss, no_test_rows]
+        cols += ["Time taken (M)", "Date", "Time"]
+        row += [time_taken, date_now.strftime('%d/%m/%Y'), date_now.strftime('%H:%M:00')]
+        df = pd.DataFrame([row],
+                        columns=cols)
 
-    torch.save(model.state_dict(), full_path)
-    self.best_weights=model.state_dict()
-    return full_path
+        if not os.path.exists(full_path):
+            df.to_csv(full_path, index=False)
+        else:
+            df.to_csv(full_path, mode='a', header=False, index=False)
 
 
-def save_epoch_to_csv(saving_path: str, time_taken: float, train_loss: float, no_train_rows: int,
-                      test_loss: float = None,
-                      no_test_rows: int = None,
-                      ) -> None:
-    """
-    append current epoch data to existing csv file if the file doesn't exist create new one
-    :param saving_path:csv folder path
-    :param train_loss: epoch train loss
-    :param no_train_rows: no of train rows (not batches)
-    :param test_loss: epoch test loss
-    :param no_test_rows: no of test rows (not batches)
-    :param time_taken: time taken for training and testing for this epoch
-    """
-    date_now = datetime.now()
-    if saving_path is None or len(saving_path) == 0:
-        full_path = "epochs_data.csv"
-    else:
-        full_path = f"{saving_path}/epochs_data.csv"
 
-    row = [train_loss, no_train_rows]
-    cols = ["Train Loss", "no train rows"]
-    if test_loss is not None:
-        cols += ["Test Loss", "No test rows"]
-        row += [test_loss, no_test_rows]
-    cols += ["Time taken (M)", "Date", "Time"]
-    row += [time_taken, date_now.strftime('%d/%m/%Y'), date_now.strftime('%H:%M:00')]
-    df = pd.DataFrame([row],
-                      columns=cols)
-
-    if not os.path.exists(full_path):
-        df.to_csv(full_path, index=False)
-    else:
-        df.to_csv(full_path, mode='a', header=False, index=False)
     
